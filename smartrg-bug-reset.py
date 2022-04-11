@@ -14,24 +14,28 @@ check_interval = 1
 
 
 def main():
-    print('Attempting to connect to router {0} as user {1}'.format(router_host, username))
-    client = connect(router_host, username, password)
-    print('Connected to router {0}'.format(datetime.datetime.now()))
     while True:
-        print('Checking Status of {0}'.format(service_name))
-        ip, status = get_wan_service_info(client, service_name)
-        print('Public IP: {0}\tStatus: {1} \tTime:{2}'.format(ip, status, datetime.datetime.now()))
-        time_waiting = 0.0
-        while status != 'Connected':
-            if time_waiting > service_timeout:
-                print("Timeout of {0}s reached, rebooting...".format(service_timeout))
-                ssh_reboot(client)
-                client = connect(router_host, username, password)
-            print("Router disconnected, waiting 0.1s for connection...")
-            time.sleep(0.1)
-            time_waiting = time_waiting + 0.1
-            ip, status = get_wan_service_info(client, service_name)
-        time.sleep(check_interval)
+        print('Attempting to connect to router {0} as user {1}'.format(router_host, username))
+        client = connect(router_host, username, password)
+        print('Connected to router {0}'.format(datetime.datetime.now()))
+        while True:
+            try:
+                print('Checking Status of {0}'.format(service_name))
+                ip, status = get_wan_service_info(client, service_name)
+                print('Public IP: {0}\tStatus: {1} \tTime:{2}'.format(ip, status, datetime.datetime.now()))
+                time_waiting = 0.0
+                while status != 'Connected':
+                    if time_waiting > service_timeout:
+                        print("Timeout of {0}s reached, rebooting...".format(service_timeout))
+                        ssh_reboot(client)
+                        client = connect(router_host, username, password)
+                    print("Router disconnected, waiting 0.1s for connection...")
+                    time.sleep(0.1)
+                    time_waiting = time_waiting + 0.1
+                    ip, status = get_wan_service_info(client, service_name)
+                time.sleep(check_interval)
+            except Exception:
+                break
 
 
 def connect(host, u, p, timeout=0):
