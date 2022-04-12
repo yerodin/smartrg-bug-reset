@@ -63,7 +63,7 @@ def main():
                         except Exception as e:
                             print(e)
                             print("Timeout of {0}s reached or wrong answer for DNS, rebooting...".format(dns_timeout))
-                            # client = reboot_router(client)
+                            client = reboot_router(client)
                     print()
 
                     time.sleep(check_interval)
