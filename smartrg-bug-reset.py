@@ -1,10 +1,11 @@
 import datetime
 import os
+import queue
 import time
 
 import paramiko
 from paramiko.ssh_exception import SSHException
-import multiprocessing
+import threading
 
 router_host = '192.168.1.1'
 username = 'admin'
@@ -13,15 +14,14 @@ service_name = 'pppoe_0_0_1'
 service_timeout = 10.0
 check_interval = 1
 dns_check = True
-dns_timeout = 15
+dns_timeout = 12
 use_ping = True
 reboot_wait = 60  # time to wait after reboot
-#ssh_port = 22
-#time_between_reboot = 3 * 60
+startup_wait = 5  # time to wait after first connecting
 
 
-def dns_process_func(q):
-    q.put(dns_connection_check())
+# ssh_port = 22
+# time_between_reboot = 3 * 60
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
             print('Attempting to connect to router {0} as user {1}'.format(router_host, username))
             client = connect(router_host, username, password)
             print('Connected to router! {0}'.format(datetime.datetime.now()))
-            time.sleep(reboot_wait)
+            time.sleep(startup_wait)
             while True:
                 try:
                     print('Checking Status of {0}'.format(service_name))
@@ -53,9 +53,9 @@ def main():
 
                     if dns_check:
                         print('Checking DNS Status with timeout of {0}s'.format(dns_timeout))
-                        q = multiprocessing.Queue()
-                        p = multiprocessing.Process(target=dns_process_func, args=(q,))
-                        p.start()
+                        q = queue.LifoQueue()
+                        t = threading.Thread(name='dns_check', target=dns_process_func, args=(q,))
+                        t.start()
                         try:
                             if not q.get(timeout=dns_timeout):
                                 raise Exception
@@ -96,7 +96,8 @@ def connect(host, u, p, timeout=0):
             return c
         except SSHException as e:
             print(e)
-        except Exception:
+        except Exception as e:
+            print(e)
             continue
         time.sleep(0.5)
         time_waiting = time_waiting + 0.5
@@ -141,10 +142,14 @@ def banner():
     print()
 
 
+def dns_connection_check():
+    return 'answer' in os.popen('nslookup myip.opendns.com resolver1.opendns.com').read()
+
+
+def dns_process_func(q):
+    q.put(dns_connection_check())
+
+
 if __name__ == '__main__':
     banner()
     main()
-
-
-def dns_connection_check():
-    return 'answer' in os.popen('nslookup myip.opendns.com resolver1.opendns.com').read()
