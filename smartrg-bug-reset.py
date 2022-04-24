@@ -1,23 +1,24 @@
 import datetime
-import os
 import queue
 import time
 
 import paramiko
 from paramiko.ssh_exception import SSHException
 import threading
+from subprocess import Popen, DEVNULL, PIPE
 
 router_host = '192.168.1.1'
 username = 'admin'
 password = 'Adm1n@L1m3#'
 service_name = 'pppoe_0_0_1'
-service_timeout = 10.0
+service_timeout = 8.0
 check_interval = 1
 dns_check = True
 dns_timeout = 12
 use_ping = True
 reboot_wait = 60  # time to wait after reboot
-startup_wait = 5  # time to wait after first connecting
+startup_wait = 10  # time to wait after first connecting
+dns_check_setting = ('myip.opendns.com', 'resolver1.opendns.com')
 
 
 # ssh_port = 22
@@ -104,8 +105,11 @@ def connect(host, u, p, timeout=0):
 
 
 def ping_wait(host):
-    while os.system("ping -c 1 {0} > {1} 2>&1".format(host, os.devnull)) != 0:
-        time.sleep(0.1)
+    while True:
+        p = Popen(["ping"] + '-c 1 {0}'.format(host).split(), stdout=DEVNULL, stderr=DEVNULL)
+        code = p.wait()
+        if code == 0:
+            break
 
 
 def get_wan_service_info(ssh_client, service):
@@ -143,7 +147,10 @@ def banner():
 
 
 def dns_connection_check():
-    return 'answer' in os.popen('nslookup myip.opendns.com resolver1.opendns.com').read()
+    p = Popen(["nslookup"] + '{0} {1}'.format(dns_check_setting[0], dns_check_setting[1]).split(), stdout=PIPE, stderr=DEVNULL)
+    p.wait()
+    output = str(p.communicate()[0])
+    return output is not None and 'answer' in output
 
 
 def dns_process_func(q):
