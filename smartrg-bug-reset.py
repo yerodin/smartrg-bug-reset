@@ -68,7 +68,7 @@ def main():
                             print('DNS Available!')
                         except Exception as e:
                             print(e)
-                            print("Timeout of {0}s reached or wrong answer for DNS, rebooting...".format(dns_timeout))
+                            print("Timeout of {0}s reached or wrong answer for DNS, rebooting and Waiting {1}s before reconnecting to router......".format(dns_timeout, reboot_wait))
                             client = reboot_router(client)
                     print()
                     if set_debug_led:
@@ -84,9 +84,9 @@ def main():
 
 def reboot_router(client):
     ssh_reboot(client)
+    time.sleep(reboot_wait)
     if use_ping:
         ping_wait(router_host)
-    time.sleep(reboot_wait)
     return connect(router_host, username, password)
 
 
@@ -148,6 +148,7 @@ def run_cmd(ssh_client, cmd):
 def set_debug_led(ssh_client):
     run_cmd(ssh_client, 'resetethled')
     run_cmd(ssh_client, 'allledoff')
+    run_cmd(ssh_client, 'wlctl ledbh 3 0')
     run_cmd(ssh_client, 'allredledon')
 
 
