@@ -11,14 +11,15 @@ router_host = '192.168.1.1'
 username = 'admin'
 password = 'Adm1n@L1m3#'
 service_name = 'pppoe_0_0_1'
-service_timeout = 8.0
+service_timeout = 7.0
 check_interval = 1
 dns_check = True
-dns_timeout = 12
+dns_timeout = 8
 use_ping = True
-reboot_wait = 60  # time to wait after reboot
-startup_wait = 10  # time to wait after first connecting
+reboot_wait = 50  # time to wait after reboot
+startup_wait = 8  # time to wait after first connecting
 dns_check_setting = ('myip.opendns.com', 'resolver1.opendns.com')
+set_debug_led = True
 
 
 # ssh_port = 22
@@ -34,9 +35,13 @@ def main():
                 print('Able to reach router!')
             print('Attempting to connect to router {0} as user {1}'.format(router_host, username))
             client = connect(router_host, username, password)
+            if set_debug_led:
+                set_debug_led(client)
             print('Connected to router! {0}'.format(datetime.datetime.now()))
             time.sleep(startup_wait)
             while True:
+                if set_debug_led:
+                    set_debug_led(client)
                 try:
                     print('Checking Status of {0}'.format(service_name))
                     ip, status = get_wan_service_info(client, service_name)
@@ -63,10 +68,11 @@ def main():
                             print('DNS Available!')
                         except Exception as e:
                             print(e)
-                            print("Timeout of {0}s reached or wrong answer for DNS, rebooting...".format(dns_timeout))
+                            print("Timeout of {0}s reached or wrong answer for DNS, rebooting and Waiting {1}s before reconnecting to router......".format(dns_timeout, reboot_wait))
                             client = reboot_router(client)
                     print()
-
+                    if set_debug_led:
+                        run_cmd(client, 'setallledon')
                     time.sleep(check_interval)
                 except Exception as e:
                     print(e)
@@ -78,9 +84,9 @@ def main():
 
 def reboot_router(client):
     ssh_reboot(client)
+    time.sleep(reboot_wait)
     if use_ping:
         ping_wait(router_host)
-    time.sleep(reboot_wait)
     return connect(router_host, username, password)
 
 
@@ -137,6 +143,13 @@ def run_cmd(ssh_client, cmd):
     ssh_stdin.close()
     ssh_stdout.flush()
     return ssh_stdout.readlines()
+
+
+def set_debug_led(ssh_client):
+    run_cmd(ssh_client, 'resetethled')
+    run_cmd(ssh_client, 'allledoff')
+    run_cmd(ssh_client, 'wlctl ledbh 3 0')
+    run_cmd(ssh_client, 'allredledon')
 
 
 def banner():
