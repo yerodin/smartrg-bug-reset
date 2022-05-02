@@ -12,9 +12,9 @@ username = 'admin'
 password = 'Adm1n@L1m3#'
 service_name = 'pppoe_0_0_1'
 service_timeout = 7.0
-check_interval = 1
+check_interval = 3
 dns_check = True
-dns_timeout = 8
+dns_timeout = 15
 use_ping = True
 reboot_wait = 50  # time to wait after reboot
 startup_wait = 8  # time to wait after first connecting
@@ -40,6 +40,7 @@ def main():
             print('Connected to router! {0}'.format(datetime.datetime.now()))
             time.sleep(startup_wait)
             while True:
+                reboot = False
                 if set_debug_led:
                     set_debug_led(client)
                 try:
@@ -52,12 +53,13 @@ def main():
                     while status != 'Connected':
                         if time_waiting > service_timeout:
                             print("Timeout of {0}s reached for router service, rebooting...".format(service_timeout))
-                            client = reboot_router(client)
+                            reboot = True
+                            break
                         time.sleep(0.1)
                         time_waiting = time_waiting + 0.1
                         ip, status = get_wan_service_info(client, service_name)
 
-                    if dns_check:
+                    if not reboot and dns_check:
                         print('Checking DNS Status with timeout of {0}s'.format(dns_timeout))
                         q = queue.LifoQueue()
                         t = threading.Thread(name='dns_check', target=dns_process_func, args=(q,))
@@ -69,13 +71,14 @@ def main():
                         except Exception as e:
                             print(e)
                             print("Timeout of {0}s reached or wrong answer for DNS, rebooting and Waiting {1}s before reconnecting to router......".format(dns_timeout, reboot_wait))
-                            client = reboot_router(client)
+                            reboot = True
+                    if reboot:
+                        client = reboot_router(client)
                     print()
                     if set_debug_led:
                         run_cmd(client, 'setallledon')
                     time.sleep(check_interval)
                 except Exception as e:
-                    print(e)
                     break
         except Exception as e:
             print(e)
@@ -102,10 +105,9 @@ def connect(host, u, p, timeout=0):
             c.connect(host, username=u, password=p)
             return c
         except SSHException as e:
-            print(e)
+            pass
         except Exception as e:
-            print(e)
-            continue
+            pass
         time.sleep(0.5)
         time_waiting = time_waiting + 0.5
 
