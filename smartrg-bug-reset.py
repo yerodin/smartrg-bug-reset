@@ -10,14 +10,14 @@ from subprocess import Popen, DEVNULL, PIPE
 router_host = '192.168.1.1'
 username = 'admin'
 password = 'Adm1n@L1m3#'
-service_name = 'pppoe_0_0_1'
+service_name = ''
 service_timeout = 7.0
 check_interval = 3
 dns_check = True
-dns_timeout = 15
+dns_timeout = 8
 use_ping = True
-reboot_wait = 50  # time to wait after reboot
-startup_wait = 8  # time to wait after first connecting
+reboot_wait = 60  # time to wait after reboot
+startup_wait = 5  # time to wait after first connecting
 dns_check_setting = ('myip.opendns.com', 'resolver1.opendns.com')
 set_debug_led = True
 
@@ -39,12 +39,15 @@ def main():
                 set_debug_led(client)
             print('Connected to router! {0}'.format(datetime.datetime.now()))
             time.sleep(startup_wait)
+            reboot = False
             while True:
-                reboot = False
                 if set_debug_led:
                     set_debug_led(client)
                 try:
-                    print('Checking Status of {0}'.format(service_name))
+                    s_name = service_name
+                    if s_name == '':
+                        s_name = 'Wan Connection'
+                    print('Checking Status of {0}'.format(s_name))
                     ip, status = get_wan_service_info(client, service_name)
                     print('Public IP: {0}\tStatus: {1} \tTime:{2}'.format(ip, status, datetime.datetime.now()))
                     time_waiting = 0.0
@@ -69,17 +72,19 @@ def main():
                                 raise Exception
                             print('DNS Available!')
                         except Exception as e:
-                            print(e)
                             print("Timeout of {0}s reached or wrong answer for DNS, rebooting and Waiting {1}s before reconnecting to router......".format(dns_timeout, reboot_wait))
                             reboot = True
                     if reboot:
-                        client = reboot_router(client)
+                        break
                     print()
                     if set_debug_led:
                         run_cmd(client, 'setallledon')
                     time.sleep(check_interval)
                 except Exception as e:
+                    print(e)
                     break
+            if reboot:
+                reboot_router(client)
         except Exception as e:
             print(e)
             continue
@@ -88,9 +93,6 @@ def main():
 def reboot_router(client):
     ssh_reboot(client)
     time.sleep(reboot_wait)
-    if use_ping:
-        ping_wait(router_host)
-    return connect(router_host, username, password)
 
 
 def connect(host, u, p, timeout=0):
@@ -121,12 +123,13 @@ def ping_wait(host):
 
 
 def get_wan_service_info(ssh_client, service):
-    for line in run_cmd(ssh_client, 'wan show service'):
-        if '\t' + service + '\t' in line:
+    cmd_out = run_cmd(ssh_client, 'wan show service\n')
+    for line in cmd_out:
+        if (service != '' and '\t' + service + '\t' in line) or (service == '' and 'connected' in line.lower()):
             ip = line.split("\t")[-1].replace(" ", '').replace("\n", '')
             status = line.split("\t")[-2].replace(" ", '').replace("\n", '')
             return ip, status
-    return None
+    return None, None
 
 
 def ssh_reboot(ssh_client):
